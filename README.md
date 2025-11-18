@@ -80,7 +80,7 @@ Este proyecto nació como un ejercicio de análisis y mejora de una plataforma e
 - **Navegación Dinámica**: Breadcrumbs y routing optimizado
 - **SEO Optimizado**: Metadata dinámica por página
 
-## ⚠️ Alcance del Proyecto (Importante)
+## ⚠️ Alcance del Proyecto
 
 Este es un **proyecto frontend de demostración** que incluye:
 
