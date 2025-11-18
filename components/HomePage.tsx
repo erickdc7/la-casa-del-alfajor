@@ -167,7 +167,7 @@ export function HomePage({ onAddToCart }: HomePageProps) {
                                 <div className="inline-flex items-center gap-2 bg-white rounded-full px-3 sm:px-5 py-1.5 sm:py-2.5 shadow-lg border border-[#008349]/10">
                                     <div className="w-2 h-2 bg-[#008349] rounded-full animate-pulse" />
                                     <span className="text-xs sm:text-sm" style={{ color: '#008349', fontWeight: 600 }}>
-                                        Envío gratis desde S/50 en Lima
+                                        Envío gratis desde S/70 en Lima
                                     </span>
                                 </div>
                             </div>
