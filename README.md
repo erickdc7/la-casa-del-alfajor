@@ -6,7 +6,7 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.0-38B2AC?style=for-the-badge&logo=tailwind-css)
 ![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 
-> **⚠️ Nota Importante**: Este es un proyecto educativo personal que reimagina y rediseña la experiencia web de "La Casa del Alfajor", un negocio peruano real. Este proyecto **no está afiliado, patrocinado ni respaldado** por la empresa original. Fue desarrollado como ejercicio de práctica para demostrar habilidades de desarrollo web moderno.
+> **⚠️ Nota Importante**: Este es un proyecto educativo personal que rediseña la experiencia web de "La Casa del Alfajor", un negocio peruano real. Este proyecto **no está afiliado, patrocinado ni respaldado** por la empresa original. Fue desarrollado como ejercicio de práctica para demostrar habilidades de desarrollo web moderno.
 
 Rediseño completo y moderno de un e-commerce de alfajores artesanales peruanos, enfocado en mejorar la experiencia de usuario, rendimiento y funcionalidad mediante las últimas tecnologías web.
 
@@ -101,7 +101,7 @@ Este es un **proyecto frontend de demostración** que incluye:
 - Sistema de envío real
 - Panel de administración
 
-> 💡 **Nota**: Este proyecto demuestra habilidades de desarrollo frontend, arquitectura de componentes, gestión de estado y diseño de interfaces. Para un sistema de producción completo, se requeriría integrar con un backend (Node.js/Express, Django, etc.) y servicios de pago reales.
+> 💡 **Nota**: Este proyecto está enfocado en el desarrollo frontend, la arquitectura de componentes, la gestión de estado y el diseño de interfaces. Para un sistema de producción completo, se requeriría integrar con un backend (Node.js/Express, Django, etc.) y servicios de pago reales.
 
 ## 🚀 Tecnologías Utilizadas
 
