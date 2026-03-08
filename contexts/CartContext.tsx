@@ -2,23 +2,25 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 
+// Estructura de un producto en el carrito
 interface CartItem {
     id: string
     name: string
-    variant?: string
+    variant?: string // Variante opcional
     price: number
     quantity: number
     image: string
 }
 
+// Métodos y estado expuestos por el contexto
 interface CartContextType {
     items: CartItem[]
     addItem: (item: CartItem) => void
     updateQuantity: (id: string, quantity: number) => void
     removeItem: (id: string) => void
     clearCart: () => void
-    itemCount: number
-    total: number
+    itemCount: number // Número de productos distintos (no suma cantidades)
+    total: number     // Precio total del carrito
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -38,17 +40,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 console.error('Error loading cart:', error)
             }
         }
-        setIsHydrated(true) // Permite evitar escribir en localStorage durante la carga inicial
+        setIsHydrated(true) // Evita sobreescribir localStorage antes de leer los datos guardados
     }, [])
 
-    // Guardar carrito en localStorage cuando cambian los items
+    // Persistir carrito en localStorage cada vez que cambian los items
     useEffect(() => {
         if (isHydrated) {
             localStorage.setItem('cart', JSON.stringify(items))
         }
     }, [items, isHydrated])
 
-    // Añadir producto al carrito (acumula cantidad si ya existe)
+    // Si el producto ya existe, acumula la cantidad; si no, lo agrega
     const addItem = (newItem: CartItem) => {
         setItems(prevItems => {
             const existingItem = prevItems.find(item => item.id === newItem.id)
@@ -65,10 +67,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         })
     }
 
-    // Actualizar cantidad de un ítem
+    // Si la cantidad llega a 0 o menos, elimina el producto directamente
     const updateQuantity = (id: string, quantity: number) => {
         if (quantity <= 0) {
-            removeItem(id) // Si llega a 0, se elimina
+            removeItem(id)
             return
         }
 
@@ -84,16 +86,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setItems(prevItems => prevItems.filter(item => item.id !== id))
     }
 
-    // Vaciar carrito
+    // Vaciar carrito y limpiar localStorage
     const clearCart = () => {
         setItems([])
         localStorage.removeItem('cart')
     }
 
-    // Cantidad total de productos (no suma cantidades)
     const itemCount = items.length
-
-    // Total del carrito
     const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
     return (
@@ -113,7 +112,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     )
 }
 
-// Hook para consumir el contexto
+// Hook para consumir el contexto; lanza error si se usa fuera del CartProvider
 export function useCart() {
     const context = useContext(CartContext)
     if (context === undefined) {
