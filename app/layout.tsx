@@ -16,7 +16,7 @@ const playwrite = Playwrite_US_Trad({
 
 export const metadata: Metadata = {
   title: "La Casa del Alfajor",
-  description: "Alfajores artesanales hechos con ingredientes naturales. Envío a todo Lima.",
+  description: "Alfajores artesanales hechos con ingredientes naturales. Envíos a todo Lima.",
 };
 
 export default function RootLayout({
