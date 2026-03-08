@@ -9,6 +9,7 @@ import { ProductsLayout } from '@/app/products-layout'
 export default function Home() {
   const { addItem } = useCart()
 
+  // Busca el producto por id y lo agrega al carrito con cantidad 1
   const handleAddToCart = (productId: string) => {
     const product = getAllProducts().find(p => p.id === productId)
 
@@ -20,7 +21,7 @@ export default function Home() {
     addItem({
       id: product.id,
       name: product.name,
-      variant: product.variants?.[0]?.label,
+      variant: product.variants?.[0]?.label, // Toma la primera variante disponible si existe
       price: product.price,
       quantity: 1,
       image: product.image
@@ -33,6 +34,7 @@ export default function Home() {
   }
 
   return (
+    // ProductsLayout provee el layout compartido (navbar, footer, etc.)
     <ProductsLayout>
       <HomePage onAddToCart={handleAddToCart} />
     </ProductsLayout>
