@@ -936,7 +936,7 @@ function TestimonialCard({
     image: string
 }) {
     return (
-        <figure data-id={id} className="relative h-full w-72 sm:w-80 cursor-pointer overflow-hidden rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex flex-col justify-between">
+        <figure data-id={id} className="relative h-full w-72 sm:w-80 cursor-pointer overflow-hidden rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-6 shadow-lg hover:shadow-lg transition-all duration-300 hover:scale-105 flex flex-col justify-between">
             <div>
                 <div className="flex items-center gap-0.5 sm:gap-1 mb-3 sm:mb-4">
                     {[...Array(rating)].map((_, i) => (
