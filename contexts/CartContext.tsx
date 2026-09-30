@@ -5,22 +5,27 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 // Estructura de un producto en el carrito
 interface CartItem {
     id: string
+    productId: number
+    varianteId: number
     name: string
-    variant?: string // Variante opcional
+    variant?: string
     price: number
     quantity: number
     image: string
 }
 
+// Lo que el resto de la app manda al agregar — sin id, CartContext lo arma solo
+type NuevoCartItem = Omit<CartItem, 'id'>
+
 // Métodos y estado expuestos por el contexto
 interface CartContextType {
     items: CartItem[]
-    addItem: (item: CartItem) => void
+    addItem: (item: NuevoCartItem) => void
     updateQuantity: (id: string, quantity: number) => void
     removeItem: (id: string) => void
     clearCart: () => void
-    itemCount: number // Número de productos distintos (no suma cantidades)
-    total: number     // Precio total del carrito
+    itemCount: number
+    total: number
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -29,7 +34,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const [items, setItems] = useState<CartItem[]>([])
     const [isHydrated, setIsHydrated] = useState(false)
 
-    // Cargar carrito desde localStorage al montar el componente
     useEffect(() => {
         const savedCart = localStorage.getItem('cart')
         if (savedCart) {
@@ -40,34 +44,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 console.error('Error loading cart:', error)
             }
         }
-        setIsHydrated(true) // Evita sobreescribir localStorage antes de leer los datos guardados
+        setIsHydrated(true)
     }, [])
 
-    // Persistir carrito en localStorage cada vez que cambian los items
     useEffect(() => {
         if (isHydrated) {
             localStorage.setItem('cart', JSON.stringify(items))
         }
     }, [items, isHydrated])
 
-    // Si el producto ya existe, acumula la cantidad; si no, lo agrega
-    const addItem = (newItem: CartItem) => {
+    // Compara por producto Y variante juntos — dos variantes del mismo
+    // producto ya no se confunden entre sí
+    const addItem = (newItem: NuevoCartItem) => {
+        const id = `${newItem.productId}-${newItem.varianteId}`
+
         setItems(prevItems => {
-            const existingItem = prevItems.find(item => item.id === newItem.id)
+            const existingItem = prevItems.find(item => item.id === id)
 
             if (existingItem) {
                 return prevItems.map(item =>
-                    item.id === newItem.id
+                    item.id === id
                         ? { ...item, quantity: item.quantity + newItem.quantity }
                         : item
                 )
             }
 
-            return [...prevItems, newItem]
+            return [...prevItems, { ...newItem, id }]
         })
     }
 
-    // Si la cantidad llega a 0 o menos, elimina el producto directamente
     const updateQuantity = (id: string, quantity: number) => {
         if (quantity <= 0) {
             removeItem(id)
@@ -81,12 +86,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         )
     }
 
-    // Eliminar producto por id
     const removeItem = (id: string) => {
         setItems(prevItems => prevItems.filter(item => item.id !== id))
     }
 
-    // Vaciar carrito y limpiar localStorage
     const clearCart = () => {
         setItems([])
         localStorage.removeItem('cart')
@@ -112,7 +115,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     )
 }
 
-// Hook para consumir el contexto; lanza error si se usa fuera del CartProvider
 export function useCart() {
     const context = useContext(CartContext)
     if (context === undefined) {
