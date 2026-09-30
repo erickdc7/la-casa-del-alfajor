@@ -12,10 +12,10 @@ import { ProductCard } from './ProductCard';
 import { Checkbox } from './ui/checkbox';
 import { Slider } from './ui/slider';
 import { useParams } from 'next/navigation';
-import { getProductBySlug } from '../app/lib/products'
 import { useSearchParams } from 'next/navigation';
 import { getAllProducts } from '../app/lib/products'
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '../app/lib/api'
 
 interface CategoryPageProps {
     category: string;
@@ -23,10 +23,115 @@ interface CategoryPageProps {
 }
 
 interface ProductVariant {
-    id: string;
+    id: number;
     label: string;
     units?: number;
     price: number;
+}
+
+interface ProductoDetalle {
+    id: number
+    slug: string
+    name: string
+    description: string
+    ingredients: string
+    nutritionalInfo: string | null
+    price: number
+    originalPrice: number | null
+    category: string
+    badge: string | null
+    badgeType: string | null
+    inStock: boolean
+    rating: number
+    reviewsCount: number
+    image: string
+    images: string[]
+    variantLabel: string | null
+    variants: ProductVariant[]
+}
+
+function mapearProducto(data: ProductoDetalleApi): ProductoDetalle {
+    return {
+        id: data.id,
+        slug: data.slug,
+        name: data.nombre,
+        description: data.descripcion,
+        ingredients: data.ingredientes,
+        nutritionalInfo: data.infoNutricional,
+        price: data.precio,
+        originalPrice: data.precioOriginal,
+        category: data.categoria.toLowerCase(),
+        badge: data.badge,
+        badgeType: data.badgeType ? data.badgeType.toLowerCase() : null,
+        inStock: data.enStock,
+        rating: data.rating,
+        reviewsCount: data.cantidadResenas,
+        image: data.imagenPrincipal,
+        images: data.imagenesGaleria,
+        variantLabel: data.variantLabel,
+        variants: data.variantes.map((v: VarianteApi) => ({
+            id: v.id,
+            label: v.etiqueta,
+            units: v.unidades ?? undefined,
+            price: v.precio,
+        })),
+    }
+}
+
+interface ProductoRelacionado {
+    id: number
+    slug: string
+    name: string
+    price: number
+    originalPrice: number | null
+    image: string
+    badge: string | null
+    badgeType: string | null
+    rating: number
+    category: string
+}
+
+interface VarianteApi {
+    id: number
+    etiqueta: string
+    unidades: number | null
+    precio: number
+}
+
+interface ProductoDetalleApi {
+    id: number
+    slug: string
+    nombre: string
+    descripcion: string
+    ingredientes: string
+    infoNutricional: string | null
+    precio: number
+    precioOriginal: number | null
+    categoria: string
+    badge: string | null
+    badgeType: string | null
+    enStock: boolean
+    rating: number
+    cantidadResenas: number
+    imagenPrincipal: string
+    imagenesGaleria: string[]
+    variantLabel: string | null
+    variantes: VarianteApi[]
+}
+
+interface ProductoResumenApi {
+    id: number
+    slug: string
+    nombre: string
+    precio: number
+    precioOriginal: number | null
+    imagenPrincipal: string
+    badge: string | null
+    badgeType: string | null
+    enStock: boolean
+    rating: number
+    cantidadResenas: number
+    categoria: string
 }
 
 export function CategoryPage({ category = 'Alfajores', onAddToCart }: CategoryPageProps) {
@@ -463,7 +568,7 @@ export function CategoryPage({ category = 'Alfajores', onAddToCart }: CategoryPa
 }
 
 interface ProductDetailPageProps {
-    onAddToCart?: (productId: string, selectedVariant?: ProductVariant, quantity?: number) => void;
+    onAddToCart?: (productId: number, selectedVariant?: ProductVariant, quantity?: number) => void;
 }
 
 
@@ -472,20 +577,65 @@ export function ProductDetailPage({ onAddToCart }: ProductDetailPageProps) {
     const router = useRouter();
     const slug = params?.slug as string;
 
+    const [product, setProduct] = useState<ProductoDetalle | null>(null);
+    const [relatedProducts, setRelatedProducts] = useState<ProductoRelacionado[]>([]);
+    const [cargando, setCargando] = useState(true);
+    const [noEncontrado, setNoEncontrado] = useState(false);
+
     const [selectedImage, setSelectedImage] = useState(0);
     const [quantity, setQuantity] = useState(1);
-    const [selectedVariant, setSelectedVariant] = useState('caja-12');
+    const [selectedVariant, setSelectedVariant] = useState<number | null>(null);
     const [isWishlisted, setIsWishlisted] = useState(false);
 
-    const productData = getProductBySlug(slug);
+    useEffect(() => {
+        setCargando(true);
+        setNoEncontrado(false);
+        apiFetch<ProductoDetalleApi>(`/api/productos/${slug}`)
+            .then((data) => {
+                const mapeado = mapearProducto(data);
+                setProduct(mapeado);
+                setSelectedVariant(mapeado.variants[0]?.id ?? null);
+            })
+            .catch(() => setNoEncontrado(true))
+            .finally(() => setCargando(false));
+    }, [slug]);
 
     useEffect(() => {
-        if (productData?.variants?.[0]?.id) {
-            setSelectedVariant(productData.variants[0].id);
-        }
-    }, [productData?.variants]);
+        if (!product) return;
+        apiFetch<ProductoResumenApi[]>('/api/productos')
+            .then((data) => {
+                const relacionados = data
+                    .filter((p) => p.categoria.toLowerCase() === product.category && p.id !== product.id)
+                    .slice(0, 4)
+                    .map((p) => ({
+                        id: p.id,
+                        slug: p.slug,
+                        name: p.nombre,
+                        price: p.precio,
+                        originalPrice: p.precioOriginal,
+                        image: p.imagenPrincipal,
+                        badge: p.badge,
+                        badgeType: p.badgeType ? p.badgeType.toLowerCase() : null,
+                        rating: p.rating,
+                        category: p.categoria.toLowerCase(),
+                    }));
+                setRelatedProducts(relacionados);
+            })
+            .catch(() => setRelatedProducts([]));
+    }, [product]);
 
-    if (!productData) {
+    if (cargando) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-(--cream-50)">
+                <div className="text-center">
+                    <div className="text-6xl mb-4">🧁</div>
+                    <p style={{ color: 'var(--gray-600)' }}>Cargando...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (noEncontrado || !product) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-(--cream-50)">
                 <div className="text-center max-w-md px-4">
@@ -508,17 +658,10 @@ export function ProductDetailPage({ onAddToCart }: ProductDetailPageProps) {
         );
     }
 
-    const product = productData;
-
-    const variants = product.variants || [
-        { id: 'caja-6', label: 'Caja x6', units: 6, price: product.price * 0.6 },
-        { id: 'caja-12', label: 'Caja x12', units: 12, price: product.price },
-        { id: 'caja-24', label: 'Caja x24', units: 24, price: product.price * 1.8 }
-    ];
-
+    const variants = product.variants;
     const variantLabel = product.variantLabel || 'Tamaño';
     const selectedVariantData = variants.find(v => v.id === selectedVariant);
-    const currentPrice = selectedVariantData?.price || product.price;
+    const currentPrice = selectedVariantData?.price ?? product.price;
 
     const reviews = [
         {
@@ -543,22 +686,6 @@ export function ProductDetailPage({ onAddToCart }: ProductDetailPageProps) {
             verified: true
         }
     ];
-
-    const allProducts = getAllProducts();
-
-    const relatedProducts = allProducts
-        .filter(p =>
-            p.category === product.category &&
-            p.id !== product.id
-        )
-        .slice(0, 4);
-
-    if (relatedProducts.length < 4) {
-        const additionalProducts = allProducts
-            .filter(p => p.id !== product.id && !relatedProducts.includes(p))
-            .slice(0, 4 - relatedProducts.length);
-        relatedProducts.push(...additionalProducts);
-    }
 
     return (
         <div className="min-h-screen bg-(--cream-50)">
@@ -1078,9 +1205,6 @@ export function ProductDetailPage({ onAddToCart }: ProductDetailPageProps) {
                                             >
                                                 {relatedProduct.name}
                                             </h3>
-                                            <p className="text-xs text-gray-500">
-                                                {relatedProduct.variants?.[0]?.label || 'Caja x12'}
-                                            </p>
                                         </div>
 
                                         <div className="flex items-center gap-1">
@@ -1113,15 +1237,13 @@ export function ProductDetailPage({ onAddToCart }: ProductDetailPageProps) {
                                     <Button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            if (onAddToCart) {
-                                                onAddToCart(relatedProduct.id);
-                                            }
+                                            router.push(`/${relatedProduct.category}/${relatedProduct.slug}`);
                                         }}
                                         className="w-full bg-[#008349] hover:bg-[#006838] text-white rounded-lg mt-3 h-9 sm:h-10 shadow-lg hover:shadow-xl transition-all cursor-pointer text-xs sm:text-sm"
                                         style={{ fontWeight: 600 }}
                                     >
                                         <ShoppingBag className="w-3 h-3" />
-                                        Añadir al Carrito
+                                        Ver Producto
                                     </Button>
                                 </div>
                             </Card>
