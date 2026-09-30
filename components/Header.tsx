@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, User, ShoppingCart, Menu, X, ChevronDown } from 'lucide-react';
+import { Search, User, ShoppingCart, Menu, X, ChevronDown, LogOut } from 'lucide-react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
 import { Badge } from './ui/badge';
@@ -7,6 +7,7 @@ import { ImageWithFallback } from './fallback/ImageWithFallback';
 import Link from 'next/link'
 import { SearchModal } from './SearchModal';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import Image from 'next/image'
 
 interface HeaderProps {
@@ -18,7 +19,9 @@ export function Header({ cartItemCount = 0, onCartClick }: HeaderProps) {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
+    const [userMenuOpen, setUserMenuOpen] = useState(false);
     const router = useRouter();
+    const { usuario, logout } = useAuth();
 
     const megaMenus = {
         alfajores: {
@@ -274,9 +277,48 @@ export function Header({ cartItemCount = 0, onCartClick }: HeaderProps) {
                         <Button variant="ghost" size="icon" className="hidden sm:flex cursor-pointer p-2 hover:bg-(--mint-100)  rounded-full transition-colors hover:text-dark" onClick={() => setSearchOpen(true)}>
                             <Search className="w-5 h-5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className='cursor-pointer p-2 hover:bg-(--mint-100)  rounded-full transition-colors hover:text-dark' onClick={() => router.push('/auth')}>
-                            <User className="w-5 h-5" />
-                        </Button>
+
+                        <div className="relative">
+                            <Button
+                                variant="ghost"
+                                className="cursor-pointer p-2 hover:bg-(--mint-100) rounded-full transition-colors hover:text-dark flex items-center gap-2"
+                                onClick={() => {
+                                    if (usuario) {
+                                        setUserMenuOpen(!userMenuOpen);
+                                    } else {
+                                        router.push('/auth');
+                                    }
+                                }}
+                            >
+                                <User className="w-5 h-5" />
+                                {usuario && (
+                                    <span className="hidden md:inline text-sm" style={{ fontWeight: 500, color: 'var(--gray-700)' }}>
+                                        {usuario.nombre}
+                                    </span>
+                                )}
+                            </Button>
+
+                            {userMenuOpen && usuario && (
+                                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-(--gray-200) py-2 z-50">
+                                    <div className="px-4 py-2 border-b border-(--gray-200)">
+                                        <p className="text-sm" style={{ fontWeight: 600, color: 'var(--gray-900)' }}>{usuario.nombre}</p>
+                                        <p className="text-xs text-(--gray-500) truncate">{usuario.email}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            logout();
+                                            setUserMenuOpen(false);
+                                        }}
+                                        className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm hover:bg-(--mint-100) transition-colors cursor-pointer"
+                                        style={{ color: 'var(--gray-700)' }}
+                                    >
+                                        <LogOut className="w-4 h-4" />
+                                        Cerrar Sesión
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
                         <Button variant="ghost" size="icon" className="relative cursor-pointer p-2 hover:bg-(--mint-100)  rounded-full transition-colors hover:text-dark" onClick={onCartClick}>
                             <ShoppingCart className="w-5 h-5" />
                             {cartItemCount > 0 && (
