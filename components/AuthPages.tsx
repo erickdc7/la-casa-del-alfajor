@@ -8,11 +8,13 @@ import { Separator } from './ui/separator';
 import { ImageWithFallback } from './fallback/ImageWithFallback';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface LoginPageProps {
     onSwitchToRegister?: () => void;
     onSwitchToForgotPassword?: () => void;
-    onLogin?: (email: string, password: string) => void;
+    onLogin?: (email: string, password: string, rememberMe: boolean) => void;
 }
 
 export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword, onLogin }: LoginPageProps) {
@@ -24,7 +26,7 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword, onLogi
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if (onLogin) {
-            onLogin(email, password)
+            onLogin(email, password, rememberMe)
         } else {
             alert('Inicio de sesión exitoso')
         }
@@ -284,6 +286,8 @@ interface RegisterFormData {
     phone: string;
     password: string;
     confirmPassword: string;
+    acceptTerms: boolean;
+    acceptNewsletter: boolean;
 }
 
 interface RegisterPageProps {
@@ -301,13 +305,13 @@ export function RegisterPage({ onSwitchToLogin, onRegister }: RegisterPageProps)
         email: '',
         phone: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        acceptTerms: false,
+        acceptNewsletter: false
     });
 
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [acceptTerms, setAcceptTerms] = useState(false);
-    const [acceptNewsletter, setAcceptNewsletter] = useState(false);
 
     const getPasswordStrength = (password: string) => {
         if (!password) return { strength: 0, label: '', color: '' };
@@ -333,7 +337,7 @@ export function RegisterPage({ onSwitchToLogin, onRegister }: RegisterPageProps)
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!acceptTerms) {
+        if (!formData.acceptTerms) {
             alert('Debes aceptar los términos y condiciones');
             return;
         }
@@ -619,8 +623,8 @@ export function RegisterPage({ onSwitchToLogin, onRegister }: RegisterPageProps)
                                     <div className="flex items-start gap-2 w-full">
                                         <Checkbox
                                             id="terms"
-                                            checked={acceptTerms}
-                                            onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
+                                            checked={formData.acceptTerms}
+                                            onCheckedChange={(checked) => setFormData({ ...formData, acceptTerms: checked as boolean })}
                                             className="mt-0.5 cursor-pointer shrink-0"
                                         />
                                         <Label
@@ -643,8 +647,8 @@ export function RegisterPage({ onSwitchToLogin, onRegister }: RegisterPageProps)
                                     <div className="flex items-start space-x-2">
                                         <Checkbox
                                             id="newsletter"
-                                            checked={acceptNewsletter}
-                                            onCheckedChange={(checked) => setAcceptNewsletter(checked as boolean)}
+                                            checked={formData.acceptNewsletter}
+                                            onCheckedChange={(checked) => setFormData({ ...formData, acceptNewsletter: checked as boolean })}
                                             className="mt-1 cursor-pointer"
                                         />
                                         <Label htmlFor="newsletter" className="text-xs sm:text-sm cursor-pointer leading-relaxed text-gray-700">
@@ -798,6 +802,8 @@ export function ForgotPasswordPage({ onSwitchToLogin }: ForgotPasswordPageProps)
 
 export function AuthPage() {
     const [currentPage, setCurrentPage] = useState<'login' | 'register' | 'forgot'>('login');
+    const { login, registrar } = useAuth();
+    const router = useRouter();
 
     switch (currentPage) {
         case 'login':
@@ -805,9 +811,13 @@ export function AuthPage() {
                 <LoginPage
                     onSwitchToRegister={() => setCurrentPage('register')}
                     onSwitchToForgotPassword={() => setCurrentPage('forgot')}
-                    onLogin={(email, password) => {
-                        console.log('Login:', email, password);
-                        alert('Inicio de sesión exitoso');
+                    onLogin={async (email, password, rememberMe) => {
+                        try {
+                            await login(email, password, rememberMe);
+                            router.push('/');
+                        } catch (error) {
+                            alert(error instanceof Error ? error.message : 'Error al iniciar sesión');
+                        }
                     }}
                 />
             );
@@ -816,10 +826,21 @@ export function AuthPage() {
             return (
                 <RegisterPage
                     onSwitchToLogin={() => setCurrentPage('login')}
-                    onRegister={(data) => {
-                        console.log('Register:', data);
-                        alert('Registro exitoso');
-                        setCurrentPage('login');
+                    onRegister={async (data) => {
+                        try {
+                            await registrar({
+                                nombre: data.name,
+                                email: data.email,
+                                telefono: data.phone,
+                                password: data.password,
+                                confirmPassword: data.confirmPassword,
+                                aceptaTerminos: data.acceptTerms,
+                                aceptaNewsletter: data.acceptNewsletter,
+                            });
+                            router.push('/');
+                        } catch (error) {
+                            alert(error instanceof Error ? error.message : 'Error al registrarse');
+                        }
                     }}
                 />
             );
