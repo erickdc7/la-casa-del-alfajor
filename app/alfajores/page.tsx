@@ -3,22 +3,10 @@
 import { Suspense } from 'react'
 import { CategoryPage } from '@/components/ProductPages'
 import { ProductsLayout } from '@/app/products-layout'
-import { useCart } from '@/contexts/CartContext'
-import { toast } from 'sonner'
+import { useAgregarAlCarrito } from '@/app/lib/useAgregarAlCarrito'
 
 function AlfajoresContent() {
-  const { addItem } = useCart()
-
-  const handleAddToCart = (productId: string) => {
-    addItem({
-      id: productId,
-      name: 'Producto',
-      price: 10,
-      quantity: 1,
-      image: '/placeholder.jpg'
-    })
-    toast.success('Producto añadido al carrito')
-  }
+  const handleAddToCart = useAgregarAlCarrito()
 
   return <CategoryPage category="Alfajores" onAddToCart={handleAddToCart} />
 }
