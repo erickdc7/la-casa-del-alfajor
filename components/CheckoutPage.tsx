@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Check, Home, Store, Gift, CreditCard, Smartphone, Building2, Truck, Lock, ShoppingBag, ArrowLeft, MessageCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
@@ -11,13 +11,30 @@ import { Checkbox } from './ui/checkbox';
 import { Separator } from './ui/separator';
 import { Badge } from './ui/badge';
 import { ImageWithFallback } from './fallback/ImageWithFallback';
+import { toast } from 'sonner';
+import { apiFetch } from '../app/lib/api';
 
 type DeliveryMethod = 'delivery' | 'pickup';
 type PaymentMethod = 'card' | 'yape' | 'plin' | 'transfer' | 'cash';
 
+interface PedidoCreado {
+    id: number;
+    numeroOrden: string;
+    subtotal: number;
+    costoEnvio: number;
+    costoEmpaqueRegalo: number;
+    codigoCupon: string | null;
+    descuentoAplicado: number;
+    total: number;
+    estadoPedido: string;
+    estadoPago: string;
+}
+
 interface CheckoutPageProps {
     cartItems?: Array<{
         id: string;
+        productId: number;
+        varianteId: number;
         name: string;
         variant?: string;
         price: number;
@@ -25,13 +42,24 @@ interface CheckoutPageProps {
         image: string;
     }>;
     onBack?: () => void;
+    onOrderCreated?: () => void;
 }
 
-export function CheckoutPage({ cartItems = [], onBack }: CheckoutPageProps) {
+const formatearSlug = (slug: string) =>
+    slug.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+
+export function CheckoutPage({ cartItems = [], onBack, onOrderCreated }: CheckoutPageProps) {
     const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
     const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
     const [isGift, setIsGift] = useState(false);
+    const [enviando, setEnviando] = useState(false);
+    const [pedido, setPedido] = useState<PedidoCreado | null>(null);
+    const [couponInput, setCouponInput] = useState('');
+    const [cupon, setCupon] = useState<{ codigo: string; descuento: number } | null>(null);
+    const [validandoCupon, setValidandoCupon] = useState(false);
+
+
 
     // Datos del formulario de envío / recojo
     const [shippingData, setShippingData] = useState({
@@ -60,12 +88,40 @@ export function CheckoutPage({ cartItems = [], onBack }: CheckoutPageProps) {
     const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const giftWrapCost = isGift && shippingData.giftWrap ? 5 : 0;
     const shipping = deliveryMethod === 'delivery' ? (subtotal >= 50 ? 0 : 10) : 0;
-    const total = subtotal + shipping + giftWrapCost;
+    const descuento = cupon ? cupon.descuento : 0;
+    const total = subtotal + shipping + giftWrapCost - descuento;
+
+    useEffect(() => {
+        setCupon(null);
+    }, [subtotal]);
+
+    const handleApplyCoupon = async () => {
+        if (!couponInput.trim() || validandoCupon) return;
+        setValidandoCupon(true);
+        try {
+            const resultado = await apiFetch<{ codigo: string; descuento: number }>('/api/cupones/validar', {
+                method: 'POST',
+                body: { codigo: couponInput.trim(), subtotal },
+            });
+            setCupon(resultado);
+            setCouponInput('');
+            toast.success(`Cupón ${resultado.codigo} aplicado`);
+        } catch (error) {
+            setCupon(null);
+            toast.error(error instanceof Error ? error.message : 'No se pudo validar el cupón');
+        } finally {
+            setValidandoCupon(false);
+        }
+    };
 
     // Validación antes de pasar a pago
     const handleContinueToPayment = () => {
+        if (!shippingData.fullName || !shippingData.phone || !shippingData.email) {
+            alert('Por favor completa tu nombre, teléfono y email');
+            return;
+        }
         if (deliveryMethod === 'delivery') {
-            if (!shippingData.fullName || !shippingData.phone || !shippingData.address || !shippingData.district) {
+            if (!shippingData.address || !shippingData.district) {
                 alert('Por favor completa todos los campos obligatorios');
                 return;
             }
@@ -78,14 +134,60 @@ export function CheckoutPage({ cartItems = [], onBack }: CheckoutPageProps) {
         setCurrentStep(2);
     };
 
-    // Confirmación final del pedido
-    const handleConfirmOrder = () => {
-        setCurrentStep(3);
+    // Confirmación final: crea el pedido real en el backend
+    const handleConfirmOrder = async () => {
+        if (enviando) return;
+        setEnviando(true);
+        try {
+            const esDelivery = deliveryMethod === 'delivery';
+            const creado = await apiFetch<PedidoCreado>('/api/pedidos', {
+                method: 'POST',
+                body: {
+                    items: cartItems.map(item => ({
+                        productoId: item.productId,
+                        varianteId: item.varianteId,
+                        cantidad: item.quantity,
+                    })),
+                    nombreContacto: shippingData.fullName,
+                    telefonoContacto: shippingData.phone,
+                    emailContacto: shippingData.email,
+                    metodoEntrega: deliveryMethod,
+                    direccion: esDelivery ? shippingData.address : null,
+                    distrito: esDelivery ? formatearSlug(shippingData.district) : null,
+                    referencia: esDelivery ? (shippingData.reference || null) : null,
+                    localRecojo: esDelivery ? null : formatearSlug(shippingData.pickupLocation),
+                    fechaRecojo: esDelivery ? null : shippingData.pickupDate,
+                    horaRecojo: esDelivery ? null : shippingData.pickupTime,
+                    esRegalo: isGift,
+                    mensajeRegalo: isGift ? (shippingData.giftMessage || null) : null,
+                    incluyeEmpaqueRegalo: isGift && shippingData.giftWrap,
+                    metodoPago: paymentMethod,
+                    codigoCupon: cupon ? cupon.codigo : null,
+                },
+            });
+            setPedido(creado);
+            setCurrentStep(3);
+            onOrderCreated?.();
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'No se pudo crear el pedido');
+        } finally {
+            setEnviando(false);
+        }
     };
 
     // Vista final de pedido confirmado
-    if (currentStep === 3) {
-        return <OrderConfirmation orderNumber="LCA-2024-00123" />;
+    if (currentStep === 3 && pedido) {
+        const esDelivery = deliveryMethod === 'delivery';
+        return (
+            <OrderConfirmation
+                pedido={pedido}
+                esDelivery={esDelivery}
+                destino={esDelivery
+                    ? `${shippingData.address}, ${formatearSlug(shippingData.district)}`
+                    : formatearSlug(shippingData.pickupLocation)}
+                fechaEntrega={esDelivery ? '24-48 horas' : shippingData.pickupDate}
+            />
+        );
     }
 
     return (
@@ -171,7 +273,10 @@ export function CheckoutPage({ cartItems = [], onBack }: CheckoutPageProps) {
 
                                         <RadioGroup
                                             value={deliveryMethod}
-                                            onValueChange={(value) => setDeliveryMethod(value as DeliveryMethod)}
+                                            onValueChange={(value) => {
+                                                setDeliveryMethod(value as DeliveryMethod);
+                                                if (value === 'pickup' && paymentMethod === 'cash') setPaymentMethod('card');
+                                            }}
                                         >
                                             <div className="space-y-3">
                                                 <label
@@ -212,40 +317,44 @@ export function CheckoutPage({ cartItems = [], onBack }: CheckoutPageProps) {
                                             </div>
                                         </RadioGroup>
 
-                                        {deliveryMethod === 'delivery' ? (
-                                            <div className="mt-6 space-y-4">
-                                                <div className="grid md:grid-cols-2 gap-4">
-                                                    <div>
-                                                        <Label htmlFor="fullName">Nombre Completo</Label>
-                                                        <Input
-                                                            id="fullName"
-                                                            value={shippingData.fullName}
-                                                            onChange={(e) => setShippingData({ ...shippingData, fullName: e.target.value })}
-                                                            required
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <Label htmlFor="phone">Teléfono</Label>
-                                                        <Input
-                                                            id="phone"
-                                                            type="tel"
-                                                            value={shippingData.phone}
-                                                            onChange={(e) => setShippingData({ ...shippingData, phone: e.target.value })}
-                                                            required
-                                                        />
-                                                    </div>
-                                                </div>
-
+                                        <div className="mt-6 space-y-4">
+                                            <div className="grid md:grid-cols-2 gap-4">
                                                 <div>
-                                                    <Label htmlFor="email">Email</Label>
+                                                    <Label htmlFor="fullName">Nombre Completo</Label>
                                                     <Input
-                                                        id="email"
-                                                        type="email"
-                                                        value={shippingData.email}
-                                                        onChange={(e) => setShippingData({ ...shippingData, email: e.target.value })}
+                                                        id="fullName"
+                                                        value={shippingData.fullName}
+                                                        onChange={(e) => setShippingData({ ...shippingData, fullName: e.target.value })}
                                                         required
                                                     />
                                                 </div>
+                                                <div>
+                                                    <Label htmlFor="phone">Teléfono</Label>
+                                                    <Input
+                                                        id="phone"
+                                                        type="tel"
+                                                        value={shippingData.phone}
+                                                        onChange={(e) => setShippingData({ ...shippingData, phone: e.target.value })}
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <Label htmlFor="email">Email</Label>
+                                                <Input
+                                                    id="email"
+                                                    type="email"
+                                                    value={shippingData.email}
+                                                    onChange={(e) => setShippingData({ ...shippingData, email: e.target.value })}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {deliveryMethod === 'delivery' ? (
+                                            <div className="mt-6 space-y-4">
+
 
                                                 <div>
                                                     <Label htmlFor="address">Dirección</Label>
@@ -615,10 +724,11 @@ export function CheckoutPage({ cartItems = [], onBack }: CheckoutPageProps) {
                                     </Button>
                                     <Button
                                         onClick={handleConfirmOrder}
+                                        disabled={enviando}
                                         className="flex-1 bg-(--brand-primary) hover:bg-(--brand-primary-dark) text-white"
                                         size="lg"
                                     >
-                                        Confirmar Pedido
+                                        {enviando ? 'Enviando...' : 'Confirmar Pedido'}
                                     </Button>
                                 </div>
                             </>
@@ -664,11 +774,43 @@ export function CheckoutPage({ cartItems = [], onBack }: CheckoutPageProps) {
 
                                     <Separator className="my-4" />
 
+                                    {cupon ? (
+                                        <div className="flex items-center justify-between text-sm mb-4 text-(--success)">
+                                            <span>Cupón {cupon.codigo} aplicado</span>
+                                            <button onClick={() => setCupon(null)} className="hover:underline cursor-pointer">
+                                                Quitar
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-2 mb-4">
+                                            <Input
+                                                placeholder="Código de cupón"
+                                                value={couponInput}
+                                                onChange={(e) => setCouponInput(e.target.value)}
+                                                className="flex-1 text-sm"
+                                            />
+                                            <Button
+                                                onClick={handleApplyCoupon}
+                                                variant="outline"
+                                                disabled={!couponInput.trim() || validandoCupon}
+                                                className="cursor-pointer"
+                                            >
+                                                {validandoCupon ? '...' : 'Aplicar'}
+                                            </Button>
+                                        </div>
+                                    )}
+
                                     <div className="space-y-2 text-sm mb-4">
                                         <div className="flex justify-between">
                                             <span style={{ color: 'var(--gray-600)' }}>Subtotal</span>
                                             <span>S/ {subtotal.toFixed(2)}</span>
                                         </div>
+                                        {descuento > 0 && (
+                                            <div className="flex justify-between text-(--success)">
+                                                <span>Descuento</span>
+                                                <span>-S/ {descuento.toFixed(2)}</span>
+                                            </div>
+                                        )}
                                         {giftWrapCost > 0 && (
                                             <div className="flex justify-between">
                                                 <span style={{ color: 'var(--gray-600)' }}>Empaque Premium</span>
@@ -712,7 +854,14 @@ export function CheckoutPage({ cartItems = [], onBack }: CheckoutPageProps) {
     );
 }
 
-function OrderConfirmation({ orderNumber }: { orderNumber: string }) {
+interface OrderConfirmationProps {
+    pedido: PedidoCreado;
+    esDelivery: boolean;
+    destino: string;
+    fechaEntrega: string;
+}
+
+function OrderConfirmation({ pedido, esDelivery, destino, fechaEntrega }: OrderConfirmationProps) {
     return (
         <div className="min-h-screen bg-linear-to-br from-(--cream-50) to-(--beige-100) flex items-center justify-center px-4 py-8 sm:py-12">
             <Card className="max-w-2xl w-full border-0 shadow-modal">
@@ -722,7 +871,7 @@ function OrderConfirmation({ orderNumber }: { orderNumber: string }) {
                     </div>
 
                     <h1 className="text-2xl sm:text-3xl lg:text-4xl mb-2 sm:mb-3" style={{ fontFamily: 'var(--font-heading)' }}>
-                        ¡Pedido Confirmado!
+                        ¡Pedido Recibido!
                     </h1>
 
                     <p className="text-base sm:text-lg mb-2" style={{ color: 'var(--gray-700)' }}>
@@ -732,12 +881,12 @@ function OrderConfirmation({ orderNumber }: { orderNumber: string }) {
                     <div className="inline-block px-3 sm:px-4 py-2 bg-(--cream-100) rounded-lg mb-4 sm:mb-6">
                         <span className="text-xs sm:text-sm" style={{ color: 'var(--gray-600)' }}>Número de orden:</span>
                         <p className="text-sm sm:text-base" style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--brand-primary)' }}>
-                            {orderNumber}
+                            {pedido.numeroOrden}
                         </p>
                     </div>
 
                     <p className="text-sm sm:text-base mb-6 sm:mb-8" style={{ color: 'var(--gray-600)' }}>
-                        Te hemos enviado la confirmación a tu email con todos los detalles de tu pedido.
+                        Guardamos tu pedido. Te contactaremos para confirmar el pago y coordinar la entrega.
                     </p>
 
                     <Card className="border-2 mb-8 text-left" style={{ borderColor: 'var(--beige-300)' }}>
@@ -749,7 +898,7 @@ function OrderConfirmation({ orderNumber }: { orderNumber: string }) {
                                 <div>
                                     <h3 style={{ fontWeight: 600 }}>Estado del Pedido</h3>
                                     <Badge className="bg-(--accent-amber) text-white">
-                                        En Preparación
+                                        {pedido.estadoPago === 'PENDIENTE' ? 'Pendiente de pago' : 'Pago confirmado'}
                                     </Badge>
                                 </div>
                             </div>
@@ -759,19 +908,19 @@ function OrderConfirmation({ orderNumber }: { orderNumber: string }) {
                             <div className="space-y-3 text-sm">
                                 <div className="flex justify-between">
                                     <span style={{ color: 'var(--gray-600)' }}>Método de envío:</span>
-                                    <span style={{ fontWeight: 500 }}>Envío a domicilio</span>
+                                    <span style={{ fontWeight: 500 }}>{esDelivery ? 'Envío a domicilio' : 'Recojo en tienda'}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span style={{ color: 'var(--gray-600)' }}>{esDelivery ? 'Dirección:' : 'Local de recojo:'}</span>
+                                    <span className="text-right" style={{ fontWeight: 500 }}>{destino}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span style={{ color: 'var(--gray-600)' }}>Dirección:</span>
-                                    <span style={{ fontWeight: 500 }}>Av. Larco 1234, Miraflores</span>
+                                    <span style={{ color: 'var(--gray-600)' }}>{esDelivery ? 'Entrega estimada:' : 'Fecha de recojo:'}</span>
+                                    <span style={{ fontWeight: 500 }}>{fechaEntrega}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span style={{ color: 'var(--gray-600)' }}>Fecha estimada:</span>
-                                    <span style={{ fontWeight: 500 }}>22-23 Oct 2025</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span style={{ color: 'var(--gray-600)' }}>Total pagado:</span>
-                                    <span style={{ fontWeight: 600, color: 'var(--brand-primary)' }}>S/ 68.00</span>
+                                    <span style={{ color: 'var(--gray-600)' }}>Total a pagar:</span>
+                                    <span style={{ fontWeight: 600, color: 'var(--brand-primary)' }}>S/ {pedido.total.toFixed(2)}</span>
                                 </div>
                             </div>
                         </CardContent>
@@ -781,7 +930,7 @@ function OrderConfirmation({ orderNumber }: { orderNumber: string }) {
                         <h3 className="mb-4" style={{ fontWeight: 600 }}>Próximos Pasos</h3>
                         <div className="grid md:grid-cols-3 gap-4 text-left">
                             {[
-                                { icon: '📧', title: 'Confirmación', desc: 'Revisa tu email' },
+                                { icon: '💬', title: 'Confirmación', desc: 'Confirmamos tu pago' },
                                 { icon: '👨‍🍳', title: 'Preparación', desc: 'Preparamos tu pedido' },
                                 { icon: '🚚', title: 'Entrega', desc: '24-48 horas' }
                             ].map((step, index) => (
