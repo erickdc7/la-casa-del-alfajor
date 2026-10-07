@@ -568,7 +568,12 @@ export function CategoryPage({ category = 'Alfajores', onAddToCart }: CategoryPa
 }
 
 interface ProductDetailPageProps {
-    onAddToCart?: (productId: number, selectedVariant?: ProductVariant, quantity?: number) => void;
+    onAddToCart?: (
+        productId: number,
+        selectedVariant?: ProductVariant,
+        quantity?: number,
+        info?: { name: string; image: string }
+    ) => void;
 }
 
 
@@ -879,7 +884,7 @@ export function ProductDetailPage({ onAddToCart }: ProductDetailPageProps) {
                             <Button
                                 onClick={() => {
                                     if (onAddToCart) {
-                                        onAddToCart(product.id, selectedVariantData, quantity);
+                                        onAddToCart(product.id, selectedVariantData, quantity, { name: product.name, image: product.image });
                                     }
                                 }}
                                 className="flex-1 bg-(--brand-primary) hover:bg-(--brand-primary-dark) text-white h-10 sm:h-11 md:h-12 text-sm sm:text-base cursor-pointer"
