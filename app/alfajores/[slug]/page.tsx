@@ -15,7 +15,12 @@ interface ProductVariant {
 export default function ProductPage() {
   const { addItem } = useCart()
 
-  const handleAddToCart = (productId: number, selectedVariant?: ProductVariant, quantity: number = 1) => {
+  const handleAddToCart = (
+    productId: number,
+    selectedVariant?: ProductVariant,
+    quantity: number = 1,
+    info?: { name: string; image: string }
+  ) => {
     if (!selectedVariant) {
       toast.error('Selecciona una variante');
       return;
@@ -24,15 +29,15 @@ export default function ProductPage() {
     addItem({
       productId: productId,
       varianteId: selectedVariant.id,
-      name: selectedVariant.label,
+      name: info?.name ?? selectedVariant.label,
       variant: selectedVariant.label,
       price: selectedVariant.price,
       quantity: quantity,
-      image: ''
+      image: info?.image ?? ''
     })
 
     toast.success('Producto añadido al carrito', {
-      description: `${selectedVariant.label} (x${quantity})`,
+      description: `${info?.name ?? ''} - ${selectedVariant.label} (x${quantity})`,
       duration: 2000
     })
   }
