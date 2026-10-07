@@ -34,23 +34,11 @@ export function CartDrawer({
     onCheckout
 }: CartDrawerProps) {
     const router = useRouter();
-    const [couponCode, setCouponCode] = useState('');
-    const [showCoupon, setShowCoupon] = useState(false);
-    const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
 
     // Cálculos del carrito
     const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const discount = appliedCoupon ? subtotal * 0.1 : 0;
     const shipping = subtotal >= 50 ? 0 : 10;
-    const total = subtotal - discount + shipping;
-
-    // Aplica cupón si hay texto válido
-    const handleApplyCoupon = () => {
-        if (couponCode.trim()) {
-            setAppliedCoupon(couponCode);
-            setCouponCode('');
-        }
-    };
+    const total = subtotal + shipping;
 
     // Ir al checkout: cierra el drawer y navega a /checkout
     const handleGoToCheckout = () => {
@@ -163,59 +151,13 @@ export function CartDrawer({
                 {/* Footer */}
                 {items.length > 0 && (
                     <div className="border-t border-border px-4 sm:px-6 py-4 space-y-3 sm:space-y-4 bg-white">
-                        {/* Coupon */}
-                        <div>
-                            {!showCoupon ? (
-                                <button
-                                    onClick={() => setShowCoupon(true)}
-                                    className="flex items-center gap-2 text-xs sm:text-sm hover:text-(--brand-primary) transition-colors cursor-pointer"
-                                    style={{ color: 'var(--gray-600)' }}
-                                >
-                                    <Tag className="w-3 sm:w-4 h-3 sm:h-4" />
-                                    ¿Tienes un cupón?
-                                </button>
-                            ) : (
-                                <div className="flex gap-2">
-                                    <Input
-                                        placeholder="Código de cupón"
-                                        value={couponCode}
-                                        onChange={(e) => setCouponCode(e.target.value)}
-                                        className="flex-1 text-xs sm:text-sm h-8 sm:h-10"
-                                    />
-                                    <Button
-                                        onClick={handleApplyCoupon}
-                                        variant="outline"
-                                        disabled={!couponCode.trim()}
-                                        className="text-xs sm:text-sm h-8 sm:h-10 px-3 sm:px-4 cursor-pointer"
-                                    >
-                                        Aplicar
-                                    </Button>
-                                </div>
-                            )}
-                            {appliedCoupon && (
-                                <div className="mt-2 flex items-center justify-between text-xs sm:text-sm text-(--success)">
-                                    <span>Cupón {appliedCoupon} aplicado</span>
-                                    <button onClick={() => setAppliedCoupon(null)} className="hover:underline cursor-pointer">
-                                        Quitar
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        <Separator />
-
                         {/* Totals */}
                         <div className="space-y-2 text-xs sm:text-sm">
                             <div className="flex justify-between">
                                 <span style={{ color: 'var(--gray-600)' }}>Subtotal</span>
                                 <span>S/ {subtotal.toFixed(2)}</span>
                             </div>
-                            {discount > 0 && (
-                                <div className="flex justify-between text-(--success)">
-                                    <span>Descuento</span>
-                                    <span>-S/ {discount.toFixed(2)}</span>
-                                </div>
-                            )}
+
                             <div className="flex justify-between">
                                 <span style={{ color: 'var(--gray-600)' }}>Envío</span>
                                 <span className={shipping === 0 ? 'text-(--success)' : ''}>
