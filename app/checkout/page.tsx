@@ -1,26 +1,32 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckoutPage } from '@/components/CheckoutPage'
 import { useCart } from '@/contexts/CartContext'
 import { ProductsLayout } from '@/app/products-layout'
 
 export default function Checkout() {
     const router = useRouter()
-    const { items } = useCart()
+    const { items, clearCart } = useCart()
+    const [pedidoCreado, setPedidoCreado] = useState(false)
 
     useEffect(() => {
-        if (items.length === 0) {
+        if (items.length === 0 && !pedidoCreado) {
             router.push('/')
         }
-    }, [items, router])
+    }, [items, pedidoCreado, router])
 
     const handleBack = () => {
         router.back()
     }
 
-    if (items.length === 0) {
+    const handleOrderCreated = () => {
+        setPedidoCreado(true)
+        clearCart()
+    }
+
+    if (items.length === 0 && !pedidoCreado) {
         return null
     }
 
@@ -29,6 +35,7 @@ export default function Checkout() {
             <CheckoutPage
                 cartItems={items}
                 onBack={handleBack}
+                onOrderCreated={handleOrderCreated}
             />
         </ProductsLayout>
     )
